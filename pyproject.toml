@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "gutensearch"
+version = "0.1.0"
+description = "A searchable database and command-line-interface for wordss and documents from Project Gutenberg"
+authors = ["Yannis Katsaros <yannis@katsaros.io>"]
+license = "GPL-3.0"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+requests = "^2.24.0"
+beautifulsoup4 = "^4.9.3"
+# psycopg2 = "^2.8.6"
+
+[tool.poetry.dev-dependencies]
+psycopg2-binary = "^2.8.6"
+pytest = "^6.1.1"
+mypy = "^0.790"
+mkdocs = "^1.1.2"
+mkdocs-material = "^6.1.0"
+mkdocstrings = "^0.13.6"
+pylint = "^2.6.0"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
