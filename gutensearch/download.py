@@ -66,7 +66,7 @@ def document_url(id_: int) -> Optional[str]:
         return None
     return f"{BASE_URL}/{'/'.join(prefix)}/{id_}/"
 
-def get_site_urls(url: str) -> List[str]:
+def get_site_urls(url: str) -> Optional[List[str]]:
     """
     Extract every `<a>` tag from the HTML of the
     given site, and return it as a list of strings.
@@ -81,8 +81,13 @@ def get_site_urls(url: str) -> List[str]:
         HTTPError: If there is an issue executing the request
 
     """
-    response = requests.get(url)
-    response.raise_for_status()
+    log = logging.getLogger('gutensearch.download.get_site_urls')
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+    except Exception as e:
+        log.exception(e)
+        return None
 
     soup = BeautifulSoup(response.text, features='html.parser')
     links = [t.attrs.get('href') for t in soup.find_all('a')]
@@ -112,11 +117,16 @@ def download_document_text(id_: int) -> Optional[str]:
         The text, decoded from the .txt file if one is found,
         `None` if no .txt files are found otherwise.
     """
+    log = logging.getLogger('gutensearch.download.download_document_text')
     url = document_url(id_)
     if url is None:
         return None
 
+    time.sleep(1)
     files = get_site_urls(url)
+    if files is None:
+        return None
+
     textfiles = [os.path.splitext(f)[0] for f in files if f.endswith('.txt')]
     textfiles = sorted(textfiles)
 
@@ -126,8 +136,12 @@ def download_document_text(id_: int) -> Optional[str]:
     # use the first item as the text to download
     time.sleep(1)
     url = f'{url}{textfiles[0]}.txt'
-    response = requests.get(url)
-    response.raise_for_status()
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+    except Exception as e:
+        log.exception(e)
+        return None
 
     return response.text
 
@@ -157,7 +171,7 @@ def download_gutenberg_documents(
             List of document id's to exclusively download
 
     """
-    log = logging.getLogger('gutensearch.download')
+    log = logging.getLogger('gutensearch.download.download_gutenberg_documents')
 
     # track download metadata such as url, datetime, path
     meta_path = path / '.meta.json'
