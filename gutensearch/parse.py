@@ -4,11 +4,13 @@ by cleaning each word (removing punctuation & numbers and
 converting to lower-case) and counting the unique occurence
 of each word in the given document.
 """
+import os
 import re
-from typing import Sequence
+from typing import Sequence, List
 from collections import Counter
 from itertools import chain
 from difflib import SequenceMatcher
+from pathlib import Path
 
 NONLETTER_PATTERN = re.compile(r'[^a-zA-Z]')
 
@@ -62,3 +64,57 @@ def closest_match(word: str, corpus: Sequence[str]) -> str:
     result = max(ratios, key=lambda x: x[1])
     
     return result[0]
+
+def parse_gutenberg_index() -> List[int]:
+    """
+    Makes the best attempt at extracting each document id
+    using the "Gutenberg Index" document which contains an
+    id for each document in the entire database provided by
+    Project Gutenberg.
+
+    See: http://www.gutenberg.org/dirs/GUTINDEX.ALL
+
+    Returns:
+        A list of integers representing each document id
+
+    """
+    INDEX_URL = 'http://www.gutenberg.org/dirs/GUTINDEX.ALL'
+    PARENT = Path(__file__).parent.resolve()
+    GUTENBERG_INDEX = PARENT / 'gutenberg-index.txt'
+
+    # attempt to read the index from a local file copy first
+    if os.path.exists(GUTENBERG_INDEX):
+        with open(GUTENBERG_INDEX, 'r') as f:
+            lines = f.readlines()
+    else:
+        # delay import because we don't need it until now
+        import requests
+
+        response = requests.get(INDEX_URL)
+        response.raise_for_status()
+
+        text = response.content.decode('utf-8')
+        lines = text.strip().split('\n')
+
+    ids: List[int] = []
+    for line in lines:
+        parts = line.strip().split()
+
+        # skip empty lines
+        if len(parts) == 0:
+            continue
+
+        # we want the integer id at the end of each
+        # document name line
+        try:
+            id_ = int(parts[-1])
+        except ValueError:
+            continue
+        
+        # do we want this in the future?
+        # name = ' '.join(parts[0:-1])
+        ids.append(id_)
+
+    # drop any possible duplicates
+    return list(set(ids))
+    
