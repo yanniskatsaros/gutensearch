@@ -25,10 +25,10 @@ def clean(s: str) -> str:
     """
     return re.sub(NONLETTER_PATTERN, '', s.strip().lower())
 
-def parse_word_count(lines: Sequence[str]) -> Counter:
+def parse_word_count(doc: str) -> Counter:
     """
     Count the occurence of each unique (cleaned) word from
-    each string in the given sequence of lines.
+    the provided text document.
 
     Parameters:
         lines: A sequence of lines containing text
@@ -38,8 +38,11 @@ def parse_word_count(lines: Sequence[str]) -> Counter:
         word, and the value is the count of how frequently
         that word occured in the given document.
     """
-    words = [clean(s) for s in chain(*[l.strip().split() for l in lines])]
+    # use lazy generator expressions, then only consume the stream once
+    lines = (l.strip().split() for l in doc.strip().split('\n'))
+    words = (clean(s) for s in chain(*lines))
 
+    # the stream is only consumed once when counting each word
     return Counter(words)
 
 def closest_match(word: str, corpus: Sequence[str]) -> str:
