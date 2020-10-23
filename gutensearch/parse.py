@@ -8,6 +8,7 @@ import re
 from typing import Sequence
 from collections import Counter
 from itertools import chain
+from difflib import SequenceMatcher
 
 NONLETTER_PATTERN = re.compile(r'[^a-zA-Z]')
 
@@ -40,3 +41,21 @@ def parse_word_count(lines: Sequence[str]) -> Counter:
     words = [clean(s) for s in chain(*[l.strip().split() for l in lines])]
 
     return Counter(words)
+
+def closest_match(word: str, corpus: Sequence[str]) -> str:
+    """
+    Returns the word in the corpus that is the closest match
+    to the word specified using the highest comparison "ratio".
+
+    !!! warning
+        This function will resolve ties simply by returning
+        the first occurence of the highest ratio.
+
+    Parameters:
+        word: The word to perform a "fuzzy match" on
+        corpus: The corpus of words to try and match against
+    """
+    ratios = [(w, SequenceMatcher(None, word, w).ratio()) for w in corpus]
+    result = max(ratios, key=lambda x: x[1])
+    
+    return result[0]
