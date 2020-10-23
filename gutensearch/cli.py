@@ -1,9 +1,11 @@
 import os
+import json
 import logging
 from pathlib import Path
 from argparse import ArgumentParser
 
 from .download import download_gutenberg_documents
+from .parse import parse_gutenberg_index
 
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(name)s - %(message)s',
@@ -61,6 +63,23 @@ def make_parser() -> ArgumentParser:
     )
     parser_download.set_defaults(__download=True)
 
+    # the following options are mutually exclusive
+    me_download_group = parser_download.add_mutually_exclusive_group()
+    me_download_group.add_argument(
+        '--only',
+        help='Download only the document ids listed in the given file',
+    )
+    me_download_group.add_argument(
+        '--exclude',
+        help='Download all document ids except those listed in the given file',
+    )
+    me_download_group.add_argument(
+        '--use-metadata',
+        help='Use the .meta.json file to determine which documents to download',
+        action='store_true',
+        default=False,
+    )
+
     return parser
 
 def main():
@@ -73,11 +92,29 @@ def main():
     if hasattr(args, '__download'):
         logging.getLogger().setLevel(LOG_LEVEL_CHOICES[args.log_level])
 
+        ids = None
+        if args.only is not None:
+            with open(args.only, 'r') as f:
+                ids = [int(i.strip()) for i in f.readlines()]
+
+        if args.exclude is not None:
+            with open(args.except_ids, 'r') as f:
+                exclude = [int(i.strip()) for i in f.readlines()]
+            ids = list(set(ids) - set(exclude))
+
+        if args.use_metadata:
+            with open(args.path / '.meta.json', 'r') as f:
+                meta = json.load(f)
+
+            ids = parse_gutenberg_index()
+            ids = list(set(ids) - set(int(i) for i in meta.keys()))
+
         try:
             download_gutenberg_documents(
                 path=args.path,
                 limit=args.limit,
-                delay=args.delay
+                delay=args.delay,
+                only=ids
             )
         except KeyboardInterrupt:
             return
