@@ -18,15 +18,11 @@ from urllib.parse import urlsplit, urlunsplit
 import requests
 from bs4 import BeautifulSoup # type: ignore
 
+from .parse import parse_gutenberg_index
+
 DATETIME_FMT = '%Y-%m-%d %H:%M:%S'
 
-ENCODINGS = (
-    'utf-8',
-    'latin-1',
-    'ascii',
-)
-
-def save_metadata(meta: List[Dict[str, str]], path: Path) -> None:
+def save_metadata(meta: Dict[int, Dict[str, str]], path: Path) -> None:
     """
     Convenience function to save metadata to the given path
 
@@ -37,28 +33,38 @@ def save_metadata(meta: List[Dict[str, str]], path: Path) -> None:
     with open(path, 'w') as f:
         json.dump(meta, f, indent=2, default=str)
 
-def decode_bytes(b: bytes) -> Optional[str]:
+def save_document(doc: str, path: Path) -> None:
     """
-    Convenience function to attempt to decode bytes into a string
+    Convenience function to save the document to the given path
 
     Parameters:
-        b:
-            The bytes to attempt to decode. Options attempted:
-            
-            - `utf-8`
-            - `latin-1`
-            - `ascii`
+        doc: The text document to save
+        path: The full path name to save the document to
+    """
+    with open(path, 'w') as f:
+        f.write(doc)
+
+def document_url(id_: int) -> Optional[str]:
+    """
+    Generate the URL for the given document id,
+    if one can be correctly inferred.
+
+    Parameters:
+        id_:
+            The document id assigned by Project Gutenberg.
+            See the [Gutenberg Index](https://www.gutenberg.org/dirs/GUTINDEX.ALL)
+            for more information
 
     Returns:
-        The bytes as a string if the decoding was succesful. `None` otherwise.
+        The URL string if it can be inferred, `None` otherwise
     """
-    for enc in ENCODINGS:
-        try:
-            return b.decode(enc)
-        except UnicodeDecodeError:
-            pass
+    BASE_URL = 'https://aleph.gutenberg.org'
 
-    return None
+    prefix = str(id_)[:-1]
+    if len(prefix) == 0:
+        # don't know where to find single id docs (yet)
+        return None
+    return f"{BASE_URL}/{'/'.join(prefix)}/{id_}/"
 
 def get_site_urls(url: str) -> List[str]:
     """
@@ -83,153 +89,132 @@ def get_site_urls(url: str) -> List[str]:
     
     return [l for l in links if l is not None]
 
-def download_zip_text(url: str) -> List[Dict[str, str]]:
+def download_document_text(id_: int) -> Optional[str]:
     """
-    Download and parse the contents of all text files
-    from the given URL string of a zip file, and return
-    a list of dictionaries containing the id and text of
-    each document.
+    Download the contents of the text file from the page
+    for the provided document id. If more than one text
+    files are found, the function will break ties in this order:
+
+    - {id}.txt
+    - {id}-0.txt
+    - {id}-8.txt
+
+    If no text files are found in the page, then
+    the function will return `None`
 
     Parameters:
-        url: The URL string of the zip file
+        id_:
+            The document id assigned by Project Gutenberg.
+            See the [Gutenberg Index](https://www.gutenberg.org/dirs/GUTINDEX.ALL)
+            for more information
 
     Returns:
-        A list of dictionaries, where each dictionary contains
-        the id of the document, and the text parsed as a utf-8 string
-
+        The text, decoded from the .txt file if one is found,
+        `None` if no .txt files are found otherwise.
     """
+    url = document_url(id_)
+    if url is None:
+        return None
+
+    files = get_site_urls(url)
+    textfiles = [os.path.splitext(f)[0] for f in files if f.endswith('.txt')]
+    textfiles = sorted(textfiles)
+
+    if len(textfiles) == 0:
+        return None
+
+    # use the first item as the text to download
+    time.sleep(1)
+    url = f'{url}{textfiles[0]}.txt'
     response = requests.get(url)
     response.raise_for_status()
 
-    # open the zip file
-    zfile = ZipFile(BytesIO(response.content))
-    # and only keep any docs with .txt attachments
-    txt_files = [f for f in zfile.namelist() if f.endswith('.txt')]
-
-    contents = []
-    for file in txt_files:
-        # first get the file name (needed for the document id)
-        name, _ = os.path.splitext(file)
-        # make sure to parse the name in case it has any /
-        name = Path(name.lower()).name
-
-        with zfile.open(file) as f:
-            # skip this file if it can't be decoded
-            text = decode_bytes(f.read())
-            if text is None:
-                continue
-
-            contents.append({
-                'id': name,
-                'text': text,
-            })
-
-    return contents
+    return response.text
 
 def download_gutenberg_documents(
-    url: str,
     path: Path,
     limit: Optional[int] = None,
-    delay: int = 2) -> None:
+    delay: int = 2,
+    only: Optional[List[int]] = None) -> None:
     """
     Utility function to download every .txt document from
-    the given base URL, and save each result to the specified
-    directory. Optionally, limit the total number of files
-    downloaded, and modify the delay between consecutive requests.
+    Project Gutenberg. This function supports incremental
+    downloads by supplying an optional list of integers
+    containing only specific id's of documents to download.
 
     Parameters:
-        url: The base URL from which to begin the download
-        path: The path to the directory where to save the results
-        limit: Stop the download after a given number of documents
-        delay: Execute requests every `delay` __seconds__
+        path:
+            The directory to save the results. If it doesn't
+            already exist, a new directory will be created.
+        limit:
+            Stop the download only after a given number of
+            documents have been successfuly downloaded. Otherwise
+            if `None`, continue downloading until all documents
+            have been saved locally.
+        delay:
+            Delay execution of consecutive requests, in seconds
+        only:
+            List of document id's to exclusively download
 
     """
     log = logging.getLogger('gutensearch.download')
 
+    # track download metadata such as url, datetime, path
+    meta_path = path / '.meta.json'
+    meta: Dict[int, Dict[str, str]] = {}
+
     # if the destination directory doesn't exist, create it
-    if not os.path.exists(path):
+    if os.path.exists(path):
+        # check for existing metadata and read it in first
+        if os.path.exists(meta_path):
+            with open(meta_path, 'r') as f:
+                meta = json.load(f)
+    else:
         os.mkdir(path)
 
-    # save metadata about the download for debugging/future reference
-    meta: List[Dict[str, str]] = []
-    meta_path = path / '.meta.json'
+    # if a list of exclusive id's is provided use that
+    if only is not None:
+        ids = [i for i in only]
+    else:
+        # download the entire list first
+        log.info('Downloading project gutenberg document index')
+        time.sleep(1)
+        ids = parse_gutenberg_index()
 
-    # tracks the total number of files downloaded
-    counter = 0
+    # begin download each document
+    counter: int = 0
+    for i in ids:
+        if limit is not None:
+            if counter >= limit:
+                log.info('Saving metadata and exiting')
+                save_metadata(meta, meta_path)
 
-    while True:
-        # begin by getting the first page of links
-        links = get_site_urls(url)
-        log.debug(f'Base url links from: {url}')
-        if len(links) == 0:
-            log.info('Saving metadata and exiting')
+        url = document_url(i)
+        if url is None:
+            log.info(f'Skipping document id: {i}')
+            continue
+
+        # wait between consecutive requests
+        time.sleep(delay)
+        text = download_document_text(i)
+        if text is None:
+            log.info(f'Skipping document id: {i}')
+            continue
+
+        # save the file contents
+        filepath = path / f'{i}.txt'
+        log.info(f'[{counter}/{limit}] Saving document to path: {filepath}')
+        save_document(text, filepath)
+        counter += 1
+
+        # and record the metadata, indexing by document id
+        meta[i] = {
+            'url': url,
+            'datetime': datetime.now().strftime(DATETIME_FMT),
+            'filepath': str(filepath.resolve()),
+        }
+
+        # save metadata every 10 downloaded documents
+        if counter % 10 == 0:
+            log.info('Saving metadata checkpoint')
             save_metadata(meta, meta_path)
-            return
-
-        # we _assume_ the last link contains a url "pointer"
-        # to the next page of links of interest
-        final_link = links.pop(-1)
-        log.debug(f'Last link from list: {final_link}')
-        if final_link.endswith('.zip'):
-            log.info('Saving metadata and exiting')
-            save_metadata(meta, meta_path)
-            return
-
-        # however, it's only the query, not the absolute url
-        # so we must construct it ourselves each time
-        url_parts = urlsplit(url)
-        url_query = urlsplit(final_link).query
-
-        # construct the next url in a safe way
-        next_url = urlunsplit((
-            url_parts.scheme,
-            url_parts.netloc,
-            url_parts.path,
-            url_query,
-            ''
-        ))
-
-        for link in links:
-            # skip any non-zip files that may pop up
-            if not link.endswith('.zip'):
-                log.info(f'Skipping url: {link}')
-                continue
-
-            # delay fast, consecutive requests to avoid getting banned :P
-            time.sleep(delay)
-            doc = download_zip_text(link)
-            log.info(f'Downloading zip file contents from: {link}')
-
-            # there may be multiple text files extracted
-            for d in doc:
-                file = path / Path(d['id'] + '.txt')
-                log.info(f'({counter}/{limit}) Saving text file to: {file}')
-                with open(file, 'w') as f:
-                    f.write(d['text'])
-
-                # increment for each document saved
-                counter += 1
-
-                # save metadata as well
-                meta.append({
-                    'url': link,
-                    'id': d['id'],
-                    'datetime_retrieved': datetime.now().strftime(DATETIME_FMT),
-                    'path': str(file.resolve()),
-                })
-
-                if limit is not None:
-                    if counter >= limit:
-                        # save any outstanding metadata and break
-                        log.info('Saving metadata and exiting')
-                        save_metadata(meta, meta_path)
-                        return
-
-                # re-save the file every 10 downloads
-                if counter % 10 == 0:
-                    log.info('Saving metadata checkpoint')
-                    save_metadata(meta, meta_path)
-
-        # begin downloading from the next page
-        log.debug(f'Next base url: {next_url}')
-        url = next_url
