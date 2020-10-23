@@ -6,13 +6,67 @@ of each word in the given document.
 """
 import os
 import re
-from typing import Sequence, List
+from typing import Sequence, List, IO, Generator
 from collections import Counter
 from itertools import chain
 from difflib import SequenceMatcher
 from pathlib import Path
 
 NONLETTER_PATTERN = re.compile(r'[^a-zA-Z]')
+
+def lazytokenize(io: IO) -> Generator[str, None, None]:
+    """
+    Apply a simple tokenization strategy to the stream
+    of text provided by keeping any sequences of characters
+    that are either lower/upper case letters. Any other
+    characters (such as numbers, punctuation, whitespace)
+    are discarded, and the "token buffer" is reset. This
+    function is lazy and returns a generator object rather
+    than building up the entire token sequence in memory.
+
+    Parameters:
+        io: The stream of text to tokenize
+
+    Returns:
+        A list of strings representing each "token"
+    """
+    # holds the current word being buffered
+    chars: List[str] = []
+
+    for line in io:
+        for c in line:
+            dec = ord(c)
+            # keep only upper/lower chars
+            isupper = (65 <= dec <= 90)
+            islower = (97 <= dec <= 122)
+
+            if isupper or islower:
+                chars.append(c.lower())
+            else:
+                # save the word and flush
+                if len(chars) > 0:
+                    word = ''.join(chars)
+                    yield word
+
+                chars = []
+
+def parse_word_count(path: Path) -> Counter:
+    """
+    Count the occurence of each unique (cleaned & tokenized)
+    word from the provided text document.
+
+    Parameters:
+        path: The path to the document
+
+    Returns:
+        A counter where each key is a unique instance of a
+        word, and the value is the count of how frequently
+        that word occured in the given document.
+    """
+    with open(path, 'r') as f:
+        count = Counter(lazytokenize(f))
+
+    return count
 
 def clean(s: str) -> str:
     """
@@ -27,7 +81,7 @@ def clean(s: str) -> str:
     """
     return re.sub(NONLETTER_PATTERN, '', s.strip().lower())
 
-def parse_word_count(doc: str) -> Counter:
+def _parse_word_count(doc: str) -> Counter:
     """
     Count the occurence of each unique (cleaned) word from
     the provided text document.
