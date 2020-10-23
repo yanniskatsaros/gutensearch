@@ -1,5 +1,4 @@
 import os
-import sys
 import logging
 from pathlib import Path
 from argparse import ArgumentParser
@@ -7,9 +6,9 @@ from argparse import ArgumentParser
 from .download import download_gutenberg_documents
 
 logging.basicConfig(
-    stream=sys.stdout,
+    format='%(asctime)s [%(levelname)s] %(name)s - %(message)s',
     level=logging.INFO,
-    format='[%(levelname)5s] %(asctime)s %(name)s - %(message)s'
+    datefmt='%Y-%m-%d %H:%M:%S'
 )
 
 BASE_URL = 'http://www.gutenberg.org/robot/harvest?filetypes[]=txt&langs[]=en'
