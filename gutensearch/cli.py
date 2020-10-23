@@ -11,7 +11,7 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-BASE_URL = 'http://www.gutenberg.org/robot/harvest?filetypes[]=txt&langs[]=en'
+# BASE_URL = 'http://www.gutenberg.org/robot/harvest?filetypes[]=txt&langs[]=en'
 LOG_LEVEL_CHOICES = {
     'notset': logging.NOTSET,
     'debug': logging.DEBUG,
@@ -34,11 +34,6 @@ def make_parser() -> ArgumentParser:
     parser_download = subparser.add_parser(
         'download',
         help='Download documents in a safe and respectful way from Project Gutenberg'
-    )
-    parser_download.add_argument(
-        '--url',
-        help='The base URL to begin the download from',
-        default=BASE_URL,
     )
     parser_download.add_argument(
         '--path',
@@ -80,7 +75,6 @@ def main():
 
         try:
             download_gutenberg_documents(
-                url=args.url,
                 path=args.path,
                 limit=args.limit,
                 delay=args.delay
