@@ -130,3 +130,7 @@ dmypy.json
 
 # ignore temporary/dev files
 /temp/
+
+# ignore the git repo too since this is for Docker
+/.git
+.gitignore
