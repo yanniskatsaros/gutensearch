@@ -67,7 +67,7 @@ def parse_word_count(path: Path) -> Counter:
 
     return count
 
-def parse_document(path: Path) -> Dict[str, Union[str, Dict[str, int]]]:
+def parse_document(path: Path) -> List[Dict[str, Union[str, int]]]:
     """
     Parse the contents of the document from the given path and
     return the results as a dictionary with the document id
@@ -82,15 +82,15 @@ def parse_document(path: Path) -> Dict[str, Union[str, Dict[str, int]]]:
         path: The path to the document
 
     Returns:
-        A dictionary with two keys, `id` and `words` where
-        the `id` represents the document id and the `words`
-        is a dictionary of each word: count key-value mapping.
+        A list of dictionaries, where each dictionary represents
+        a "record" of data with the keys `word`, `document_id`,
+        and `count`.
 
     """
-    return {
-        'id': path.name.split('.')[0],
-        'words': dict(parse_word_count(path))
-    }
+    id_ = path.name.split('.')[0]
+    count = dict(parse_word_count(path))
+
+    return [{'word': w, 'document_id': id_, 'count': c} for w, c in count.items()]
 
 def closest_match(word: str, corpus: Sequence[str]) -> str:
     """
