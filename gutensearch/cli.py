@@ -119,6 +119,39 @@ def make_parser() -> ArgumentParser:
 
     return parser
 
+def download_main(args: Namespace):
+    """
+    Entrypoint for the `gutensearch download` command
+    """
+    logging.getLogger().setLevel(LOG_LEVEL_CHOICES[args.log_level])
+
+    ids = None
+    if args.only is not None:
+        with open(args.only, 'r') as f:
+            ids = [int(i.strip()) for i in f.readlines()]
+
+    if args.exclude is not None:
+        with open(args.except_ids, 'r') as f:
+            exclude = [int(i.strip()) for i in f.readlines()]
+        ids = list(set(ids) - set(exclude))
+
+    if args.use_metadata:
+        with open(args.path / '.meta.json', 'r') as f:
+            meta = json.load(f)
+
+        ids = parse_gutenberg_index()
+        ids = list(set(ids) - set(int(i) for i in meta.keys()))
+
+    try:
+        download_gutenberg_documents(
+            path=args.path,
+            limit=args.limit,
+            delay=args.delay,
+            only=ids
+        )
+    except KeyboardInterrupt:
+        return
+
 def load_main(args: Namespace):
     """
     Entrypoint for the `gutensearch load` command
@@ -196,34 +229,7 @@ def main():
     args = parser.parse_args()
 
     if hasattr(args, '__download'):
-        logging.getLogger().setLevel(LOG_LEVEL_CHOICES[args.log_level])
-
-        ids = None
-        if args.only is not None:
-            with open(args.only, 'r') as f:
-                ids = [int(i.strip()) for i in f.readlines()]
-
-        if args.exclude is not None:
-            with open(args.except_ids, 'r') as f:
-                exclude = [int(i.strip()) for i in f.readlines()]
-            ids = list(set(ids) - set(exclude))
-
-        if args.use_metadata:
-            with open(args.path / '.meta.json', 'r') as f:
-                meta = json.load(f)
-
-            ids = parse_gutenberg_index()
-            ids = list(set(ids) - set(int(i) for i in meta.keys()))
-
-        try:
-            download_gutenberg_documents(
-                path=args.path,
-                limit=args.limit,
-                delay=args.delay,
-                only=ids
-            )
-        except KeyboardInterrupt:
-            return
+        download_main(args)
 
     if hasattr(args, '__load'):
         load_main(args)
