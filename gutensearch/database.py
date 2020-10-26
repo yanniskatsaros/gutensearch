@@ -69,3 +69,65 @@ def query(sql: str, params: Optional[Tuple[Any]] = None, limit: Optional[int] = 
         cur.close()
 
     return results
+
+def search_word(word: str,
+                limit: Optional[int] = None) -> List[NamedTuple]:
+    """
+    Searches the `gutensearch` database for every document with the given word
+    and returns the results, ordered by the highest `count` for each document id.
+
+    Parameters:
+        word: The word to search for
+        limit: Return only the records with the top `n` most frequent words
+
+    Returns:
+        A list of records where each record is an instance of a `NamedTuple`
+
+    """
+    sql = """
+    SELECT word,
+           document_id,
+           count
+      FROM words
+     WHERE word = %s
+     ORDER BY 3 DESC
+    """.strip()
+    return query(sql, params=(word, ), limit=limit)
+
+def search_document(id_: int,
+                    min_length: Optional[int] = None,
+                    limit: Optional[int] = None) -> List[NamedTuple]:
+    """
+    Searches the `gutensearch` database for every word in the given document
+    and returns the results, ordered by the highest `count` for each word.
+
+    Parameters:
+        id_: The document id to search for
+        min_length: Exclude any words in the search with less than a minimum word length
+        limit: Return only the records with the top `n` most frequent words
+
+    Returns:
+        A list of records where each record is an instance of a `NamedTuple`
+
+    """
+    if min_length is not None:
+        sql = """
+        SELECT word,
+               document_id,
+               count
+          FROM words
+         WHERE document_id = %s
+           AND LENGTH(word) >= %s
+         ORDER BY 3 DESC
+        """.strip()
+        return query(sql, params=(id_, min_length), limit=limit)
+    
+    sql = """
+    SELECT word,
+           document_id,
+           count
+      FROM words
+     WHERE document_id = %s
+     ORDER BY 3 DESC
+    """.strip()
+    return query(sql, params=(id_, ), limit=limit)
