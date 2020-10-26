@@ -1,0 +1,51 @@
+site_name: gutensearch
+site_description: gutensearch Documentation
+site_author: Yannis Katsaros
+site_dir: public
+docs_dir: docs
+dev_addr: 0.0.0.0:8000 # used to serve docs from Docker
+
+nav:
+  - Home: index.md
+  - Reference:
+    - cli.py: api/cli.md
+    - database.py: api/database.md
+    - download.py: api/download.md
+    - parse.py: api/parse.md
+
+theme:
+  name: material
+  include_search_page: false
+  palette:
+    scheme: default
+    primary: blue grey
+    accent: light blue
+  icon:
+    repo: fontawesome/brands/github
+    logo: fontawesome/solid/book
+    favicon: fontawesome/solid/book
+
+extra_css:
+  - css/mkdocstrings.css
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          selection:
+            filters:
+              - "!^__"        # exclude any __ methods
+              - "^__init__$"  # but include __init__
+          rendering:
+            show_if_no_docstring: false
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.keys
+  - pymdownx.highlight:
+      use_pygments: true
