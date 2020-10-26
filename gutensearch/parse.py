@@ -6,13 +6,11 @@ of each word in the given document.
 """
 import os
 import re
-from typing import Sequence, List, IO, Generator
+from typing import Sequence, List, IO, Generator, Dict, Union
 from collections import Counter
 from itertools import chain
 from difflib import SequenceMatcher
 from pathlib import Path
-
-NONLETTER_PATTERN = re.compile(r'[^a-zA-Z]')
 
 def lazytokenize(io: IO) -> Generator[str, None, None]:
     """
@@ -54,6 +52,7 @@ def parse_word_count(path: Path) -> Counter:
     """
     Count the occurence of each unique (cleaned & tokenized)
     word from the provided text document.
+    This function is suitable to be used with multiprocessing.
 
     Parameters:
         path: The path to the document
@@ -68,38 +67,30 @@ def parse_word_count(path: Path) -> Counter:
 
     return count
 
-def clean(s: str) -> str:
+def parse_document(path: Path) -> Dict[str, Union[str, Dict[str, int]]]:
     """
-    Removes any non-letter characters, and casts the
-    entire string to lower case characters.
+    Parse the contents of the document from the given path and
+    return the results as a dictionary with the document id
+    and a dictionary of the unique word instances and their count.
+    The function assumes that the name of the file contains the
+    document id. For example, `18546.txt` would represent the
+    document with id `18546`.
+
+    This function is suitable to be used with multiprocessing.
 
     Parameters:
-        s: The string to clean
+        path: The path to the document
 
     Returns:
-        An all-lower string with any non-letter characters removed
+        A dictionary with two keys, `id` and `words` where
+        the `id` represents the document id and the `words`
+        is a dictionary of each word: count key-value mapping.
+
     """
-    return re.sub(NONLETTER_PATTERN, '', s.strip().lower())
-
-def _parse_word_count(doc: str) -> Counter:
-    """
-    Count the occurence of each unique (cleaned) word from
-    the provided text document.
-
-    Parameters:
-        lines: A sequence of lines containing text
-
-    Returns:
-        A counter where each key is a unique instance of a
-        word, and the value is the count of how frequently
-        that word occured in the given document.
-    """
-    # use lazy generator expressions, then only consume the stream once
-    lines = (l.strip().split() for l in doc.strip().split('\n'))
-    words = (clean(s) for s in chain(*lines))
-
-    # the stream is only consumed once when counting each word
-    return Counter(words)
+    return {
+        'id': path.name.split('.')[0],
+        'words': dict(parse_word_count(path))
+    }
 
 def closest_match(word: str, corpus: Sequence[str]) -> str:
     """
