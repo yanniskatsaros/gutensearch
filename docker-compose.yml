@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+  db:
+    # image: postgres:13-alpine
+    build:
+      context: .
+      dockerfile: db.Dockerfile
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    networks:
+      - common
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
+  docs:
+    build:
+      context: .
+      dockerfile: docs.Dockerfile
+    ports:
+      - 8000:8000
+    networks:
+      - common
+
+  cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PORT=5432
+    networks:
+      - common
+    depends_on:
+      - db
+
+networks:
+  common:
+
+volumes:
+  db-data:
