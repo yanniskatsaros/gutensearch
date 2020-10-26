@@ -2,10 +2,16 @@ import os
 import json
 import logging
 from pathlib import Path
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
+from multiprocessing import cpu_count, Pool
+from itertools import chain
+from io import StringIO
+
+import psycopg2  # type: ignore
 
 from .download import download_gutenberg_documents
-from .parse import parse_gutenberg_index
+from .parse import parse_gutenberg_index, parse_document
+from .database import insert_records, dbconfig
 
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(name)s - %(message)s',
@@ -80,7 +86,107 @@ def make_parser() -> ArgumentParser:
         default=False,
     )
 
+    # subparser for parsing/loading data into the db
+    parser_load = subparser.add_parser(
+        'load',
+        help='Parse and load the word counts from documents into the gutensearch database',
+    )
+    parser_load.add_argument(
+        '--path',
+        help='The path to the directory containing the documents',
+        default=Path('data'),
+        type=Path,
+    )
+    parser_load.add_argument(
+        '--limit',
+        help='Only parse and load a limited number of documents',
+        type=int,
+        default=None,
+    )
+    parser_load.add_argument(
+        '--multiprocessing',
+        help='Perform the parse/load in parallel using multiple cores',
+        action='store_true',
+        default=False,
+    )
+    parser_load.add_argument(
+        '--log-level',
+        help='Set the level for the logger',
+        choices=LOG_LEVEL_CHOICES.keys(),
+        default='info',
+    )
+    parser_load.set_defaults(__load=True)
+
     return parser
+
+def load_main(args: Namespace):
+    """
+    Entrypoint for the `gutensearch load` command
+    """
+    log = logging.getLogger('gutensearch.load')
+    log.setLevel(LOG_LEVEL_CHOICES[args.log_level])
+
+    files = [args.path/f for f in os.listdir(args.path) if f.endswith('.txt')]
+
+    # parse/load only the first `n` files if --limit
+    if args.limit is not None:
+        files = files[:args.limit]
+
+    # only use multiple cpu's if requested
+    if args.multiprocessing:
+        cpus = cpu_count()
+        log.info(f'Parsing {len(files)} documents using {cpus} cores')
+
+        with Pool(cpus) as p:
+            records = chain(*p.map(parse_document, files))
+    else:
+        log.info(f'Parsing {len(files)} documents using 1 core')
+        records = chain(*[parse_document(f) for f in files])
+
+    # connect to the db and save the results
+    with psycopg2.connect(**dbconfig()) as con:
+        cur = con.cursor()
+
+        log.info('Temporarily dropping indexes on table: words')
+        sql = """
+        DROP INDEX IF EXISTS idx_words_word;
+        DROP INDEX IF EXISTS idx_words_id;
+        """.strip()
+        cur.execute(sql)
+
+        log.info('Writing results to database')
+        # create an in-memory file-stream to copy the data
+        # using Postgres' high performance `COPY` command
+        with StringIO() as fio:
+            for d in records:
+                text = '\t'.join(str(v) for v in d.values())
+                fio.write(text + '\n')
+
+            fio.seek(0)
+            cur.copy_from(fio, 'words')
+            log.info('Finished writing data to database')
+
+        log.info('Recreating indexes on table: words')
+        sql = """
+        CREATE INDEX idx_words_word ON words (word);
+        CREATE INDEX idx_words_id ON words(document_id);
+        """.strip()
+        cur.execute(sql)
+
+        log.info('Committing changes to database')
+        con.commit()
+        cur.close()
+
+        log.info('Running vacuum analyze on table: words')
+        cur = con.cursor()
+        iso_level = con.isolation_level
+        con.set_isolation_level(0)
+        cur.execute('VACUUM ANALYZE words')
+
+        log.info('Committing changes to database')
+        con.commit()
+        con.set_isolation_level(iso_level)
+        cur.close()
 
 def main():
     """
@@ -118,3 +224,6 @@ def main():
             )
         except KeyboardInterrupt:
             return
+
+    if hasattr(args, '__load'):
+        load_main(args)
