@@ -96,6 +96,9 @@ def search_word(word: str,
     if ('%' in word) or ('_' in word):
         has_pattern = True
 
+    if has_pattern and fuzzy:
+        raise ValueError('Cannot search using both a pattern and fuzzy word matching')
+
     if has_pattern:
         sql = """
         SELECT word,
@@ -106,9 +109,6 @@ def search_word(word: str,
          ORDER BY 3 DESC
         """.strip()
         return query(sql, params=(word, ), limit=limit)
-
-    if has_pattern and fuzzy:
-        raise ValueError('Cannot search using both a pattern and fuzzy word matching')
 
     if fuzzy:
         # we need to get the "corpus" of text available first
