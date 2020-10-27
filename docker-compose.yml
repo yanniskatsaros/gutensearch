@@ -2,10 +2,10 @@ version: "3.8"
 
 services:
   db:
-    # image: postgres:13-alpine
     build:
       context: .
       dockerfile: db.Dockerfile
+    shm_size: 1g
     volumes:
       - db-data:/var/lib/postgresql/data
     ports:
