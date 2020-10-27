@@ -28,6 +28,8 @@ Once Docker compose has finished setting up, you can run the container with the 
 
 - `docker-compose run cli`
 
+Depending on how many documents you are working with, you _may or may not_ need to tune the memory limits in the `docker-compose.yml` file prior to bringing the services up. See the [troubleshooting](#troubleshooting) section below for more details if necessary.
+
 If you have already downloaded data locally using `gutensearch download` (see the [usage](#download) section below), you can mount the volume to the container at runtime. For example, if the `data/` directory is on your desktop,
 
 - `docker-compose run -v "/Users/username/Desktop/data/:/data" cli`
@@ -38,7 +40,7 @@ If you run into any issues, please see the [troubleshooting](#troubleshooting) s
 
 Alternatively, for a more "lightweight" installation where only the Postgres database is containerized, run
 
-`docker build -t db -f db.Dockerfile .`
+- `docker build -t db -f db.Dockerfile .`
 
 to build and tag the Postgres image. To start the database, run
 
@@ -260,7 +262,15 @@ Although logging is helpful for monitoring download progress, the `.meta.json` f
 
 ## Troubleshooting
 
-...
+The following section outlines a few problems you may (but hopefully don't) encounter when installing, setting-up, and running the project.
+
+__A directory that has been mounted to a container appears empty__
+
+Make sure that the data directory you are attempting to mount __is not__ in the same directory as the `.dockerignore` file. In specific, the `.dockerignore` file ignores anything under `/data/` to avoid unnecessarily sending large amounts of data to the Docker daemon when building containers.
+
+__Docker kills a task/process when loading data into the database__
+
+If you are attempting to parse/load a large number of documents at once, you may run into memory issues with Docker. The default setting in the `cli` service in `docker-compose.yml` is set to 1 gigabyte. However, if you're only building and running the cli image independently, you may need to include a `--memory` flag during `docker run`. See the [Docker resource constraints documentation](https://docs.docker.com/config/containers/resource_constraints/#memory) for more information.
 
 ## Discussion and Technical Details
 
