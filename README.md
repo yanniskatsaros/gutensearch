@@ -419,7 +419,87 @@ As we can see, the search returned results for the "best possible match" for the
 
 ### `gutensearch doc`
 
-...
+We've seen how to search for all documents for a specific word, but what if we want to do the opposite? To perform a search for the top `n` most frequently used words in a given document (id) we can use `gutensearch doc`.
+
+```
+$ gutensearch doc --help
+usage: gutensearch doc [-h] [-l LIMIT] [-m MIN_LENGTH] [-o {json,csv,tsv}] id
+
+positional arguments:
+  id                    The document id to search for
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -l LIMIT, --limit LIMIT
+                        Limit the total number of results returned
+  -m MIN_LENGTH, --min-length MIN_LENGTH
+                        Exclude any words in the search less than a minimum
+                        character length
+  -o {json,csv,tsv}, --output {json,csv,tsv}
+                        The output format when printing to stdout
+```
+
+For example, to the find the top 10 most frequent words in the document with id `8419`,
+
+```
+$ gutensearch doc 8419
+word	document_id	count
+which	8419	7601
+this	8419	7189
+with	8419	6922
+they	8419	5003
+that	8419	4714
+river	8419	4495
+from	8419	4272
+their	8419	3244
+them	8419	3150
+about	8419	2860
+```
+
+Similar to before, by default, the program will limit the results to the top 10 documents found. To change this behavior, set the --limit flag to a different option. For example,
+
+```
+$ gutensearch doc 8419 --limit 5
+word	document_id	count
+which	8419	7601
+this	8419	7189
+with	8419	6922
+they	8419	5003
+that	8419	4714
+```
+
+Once again, the results printed to `stdout` are in `tsv` format by default. To change this behavior, use the `--output` flag, choosing from one of the three options: `{tsv, csv, json}`
+
+```
+gutensearch doc 8419 --output json
+[{'count': 7601, 'document_id': 8419, 'word': 'which'},
+ {'count': 7189, 'document_id': 8419, 'word': 'this'},
+ {'count': 6922, 'document_id': 8419, 'word': 'with'},
+ {'count': 5003, 'document_id': 8419, 'word': 'they'},
+ {'count': 4714, 'document_id': 8419, 'word': 'that'},
+ {'count': 4495, 'document_id': 8419, 'word': 'river'},
+ {'count': 4272, 'document_id': 8419, 'word': 'from'},
+ {'count': 3244, 'document_id': 8419, 'word': 'their'},
+ {'count': 3150, 'document_id': 8419, 'word': 'them'},
+ {'count': 2860, 'document_id': 8419, 'word': 'about'}]
+```
+
+By default, the optional `--min-length` flag is set to 4 characters. This behavior excludes any words from the search that are less than a minimum character length. The default is set to 4 to avoid commonly encountered words such as "a" or "the". To increase the minimum character length, simply provide a different (integer) value to `--min-length` as shown in the example below
+
+```
+$ gutensearch doc 8419 --min-length 12
+word	document_id	count
+considerable	8419	274
+neighbourhood	8419	229
+particularly	8419	136
+sufficiently	8419	106
+observations	8419	88
+disagreeable	8419	84
+notwithstanding	8419	53
+considerably	8419	49
+perpendicular	8419	48
+circumstance	8419	46
+```
 
 ## Troubleshooting
 
