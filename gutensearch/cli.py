@@ -305,6 +305,9 @@ def word_main(args: Namespace):
         print(e, file=sys.stderr)
         sys.exit(1)
 
+    if len(results) == 0:
+        sys.exit(0)
+
     if args.output == 'json':
         results = [dict(r._asdict()) for r in results]
         pprint(results)
