@@ -261,14 +261,30 @@ def load_main(args: Namespace):
         log.info('Writing results to database')
         # create an in-memory file-stream to copy the data
         # using Postgres' high performance `COPY` command
+        words = []  # used later for distinct_words
         with StringIO() as fio:
             for d in records:
+                words.append(d['word'])
                 text = '\t'.join(str(v) for v in d.values())
                 fio.write(text + '\n')
 
             fio.seek(0)
             cur.copy_from(fio, 'words')
             log.info('Finished writing data to database')
+
+        # save distinct words for quicker access
+        # when perforing fuzzy word matching algorithm
+        log.info('Truncating table: distinct_words')
+        cur.execute('TRUNCATE TABLE distinct_words')
+
+        log.info('Writing new distinct words to database')
+        words = set(words)
+        with StringIO() as fio:
+            for w in words:
+                fio.write(f'{w}\n')
+            fio.seek(0)
+            cur.copy_from(fio, 'distinct_words')
+            log.info('Finished writing distinct words to database')
 
         log.info('Recreating indexes on table: words')
         sql = """
