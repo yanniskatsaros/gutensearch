@@ -134,3 +134,5 @@ dmypy.json
 # ignore the git repo too since this is for Docker
 /.git
 .gitignore
+
+/data/

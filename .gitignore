@@ -128,5 +128,11 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# ignore temporary/dev files
+# temporary/dev files
 /temp/
+
+# data directories
+/data/
+
+# MacOS files
+.DS_Store
