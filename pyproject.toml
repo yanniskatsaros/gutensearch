@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "A searchable database and command-line-interface for wordss and documents from Project Gutenberg"
 authors = ["Yannis Katsaros <yannis@katsaros.io>"]
 license = "GPL-3.0"
+include = ["gutensearch/gutenberg-index.txt"]
 
 [tool.poetry.dependencies]
 python = "^3.7"
