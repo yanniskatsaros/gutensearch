@@ -519,7 +519,74 @@ If you are attempting to parse/load a large number of documents at once, you may
 
 ## Benchmarks
 
-...
+This section is mainly focused on the performance of the parsing, loading, and searching components of this project. All figures and benchmarks performed are only meant to be loosely interpreted for instructional use and context. They have been performed on a Macbook Pro (16 inch, 2019) with 2.6 GHz 6-Core Intel Core i7 processors, and 16 GB 2667 MHz DDR4 of RAM.
+
+### Parsing
+
+The first part of `gutensearch load` includes parsing the contents of every document in the provided directory. From the logs of running `gutensearch load --path data/ --multiprocessing` on a directory with 21,421 documents (of varying size and length) using all 6 cores (12 threads), the program __parsed__ 134,855,452 records in __567 seconds__.
+
+```
+2020-10-27 00:31:15 [INFO] gutensearch.load - Parsing 21421 documents using 12 cores
+2020-10-27 00:40:42 [INFO] gutensearch.load - Temporarily dropping indexes on table: words
+```
+
+```python
+from gutensearch.database import query
+
+records = query('SELECT COUNT(*) AS count FROM words')
+count = records[0].count
+print(count)
+```
+
+```
+134855452
+```
+
+This equates to roughly __37.8 documents parsed per second__, or __237,840 records parsed per second__, on average.
+
+### Loading
+
+After documents have been parsed in memory, they need to be efficiently bulk-loaded into the database. Once again, from the logs of running `gutensearch load --path data/ --multiprocessing` on a directory with 21,421 documents (of varying size and length) using all 6 cores (12 threads), the program __loaded__ 134,855,452 records in __504 seconds__.
+
+```
+2020-10-27 00:40:42 [INFO] gutensearch.load - Writing results to database
+2020-10-27 00:51:18 [INFO] gutensearch.load - Finished writing data to database
+```
+
+This equates to roughly __267,570 records loaded into the table per second__, on average.
+
+### Word Search
+
+For a database with over 134+ million records, we have the following benchmarks. These were timed using the following setup in an `ipython` terminal using the `%timeit` cell magic. These are likely _optimistic_ estimates since the same word/pattern is repeatedly being searched for in a single `%timeit` block of loops.
+
+```python
+from gutensearch.database import search_word
+
+word = ...
+fuzzy = ...
+limit = ...
+
+%timeit search_word(word, fuzzy, limit)
+```
+
+{{ table }}
+
+### Document Search
+
+For a database with over 134+ million records, we have the following benchmarks. These were timed using the following setup in an `ipython` terminal using the `%timeit` cell magic. These are likely _optimistic_ estimates since the same document is repeatedly being searched for in a single `%timeit` block of loops.
+
+```python
+from gutensearch.database import search_document
+
+
+id_ = ...
+min_length = ...
+limit = ...
+
+%timeit search_document(id_, min_length, limit)
+```
+
+{{ table }}
 
 ## Future Work
 
