@@ -3,3 +3,7 @@ CREATE TABLE IF NOT EXISTS words (
     document_id BIGINT NOT NULL,
     count INT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS distinct_words (
+    word VARCHAR NOT NULL
+);
