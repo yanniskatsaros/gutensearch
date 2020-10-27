@@ -1,3 +1,4 @@
+import sys
 import os
 import json
 import logging
@@ -6,12 +7,13 @@ from argparse import ArgumentParser, Namespace
 from multiprocessing import cpu_count, Pool
 from itertools import chain
 from io import StringIO
+from pprint import pprint
 
 import psycopg2  # type: ignore
 
 from .download import download_gutenberg_documents
 from .parse import parse_gutenberg_index, parse_document
-from .database import insert_records, dbconfig
+from .database import dbconfig, search_word, search_document
 
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(name)s - %(message)s',
@@ -27,6 +29,12 @@ LOG_LEVEL_CHOICES = {
     'warning': logging.WARNING,
     'error': logging.ERROR,
     'critical': logging.CRITICAL,
+}
+
+OUTPUT_CHOICES = {
+    'tsv',
+    'csv',
+    'json',
 }
 
 def make_parser() -> ArgumentParser:
@@ -116,6 +124,37 @@ def make_parser() -> ArgumentParser:
         default='info',
     )
     parser_load.set_defaults(__load=True)
+
+    # subparser for searching for a word
+    parser_word = subparser.add_parser(
+        'word',
+        help='Find the documents where the given word occurs most frequently'
+    )
+    parser_word.add_argument(
+        'word',
+        help='The word to search for in the database',
+    )
+    parser_word.add_argument(
+        '-l',
+        '--limit',
+        help='Limit the total number of results returned',
+        type=int,
+        default=10,
+    )
+    parser_word.add_argument(
+        '--fuzzy',
+        help='Allow search to use fuzzy word matching',
+        action='store_true',
+        default=False,
+    )
+    parser_word.add_argument(
+        '-o',
+        '--output',
+        help='The output format when printing to stdout',
+        choices=OUTPUT_CHOICES,
+        default='tsv',
+    )
+    parser_word.set_defaults(__word=True)
 
     return parser
 
@@ -221,6 +260,40 @@ def load_main(args: Namespace):
         con.set_isolation_level(iso_level)
         cur.close()
 
+def word_main(args: Namespace):
+    """
+    Entrypoint for the `gutensearch word` command-line-interface
+    """
+    try:
+        results = search_word(args.word, args.fuzzy, args.limit)
+    except psycopg2.OperationalError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
+
+    if args.output == 'json':
+        results = [dict(r._asdict()) for r in results]
+        pprint(results)
+        sys.exit(0)
+
+    if args.output == 'tsv':
+        fields = '\t'.join(results[0]._fields)
+        print(fields)
+        for r in results:
+            values = '\t'.join(str(x) for x in r._asdict().values())
+            print(values)
+        sys.exit(0)
+
+    if args.output == 'csv':
+        fields = ','.join(results[0]._fields)
+        print(fields)
+        for r in results:
+            values = ','.join(str(x) for x in r._asdict().values())
+            print(values)
+        sys.exit(0)
+
 def main():
     """
     Entrypoint for the `gutensearch` command-line-interface
@@ -233,3 +306,6 @@ def main():
 
     if hasattr(args, '__load'):
         load_main(args)
+
+    if hasattr(args, '__word'):
+        word_main(args)
