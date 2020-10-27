@@ -130,16 +130,16 @@ def parse_gutenberg_index() -> List[int]:
     # attempt to read the index from a local file copy first
     if os.path.exists(GUTENBERG_INDEX):
         with open(GUTENBERG_INDEX, 'r') as f:
-            lines = f.readlines()
-    else:
-        # delay import because we don't need it until now
-        import requests
+            return [int(i) for i in f.read().strip().split('\n')]
 
-        response = requests.get(INDEX_URL)
-        response.raise_for_status()
+    # delay import because we don't need it until now
+    import requests
 
-        text = response.content.decode('utf-8')
-        lines = text.strip().split('\n')
+    response = requests.get(INDEX_URL)
+    response.raise_for_status()
+
+    text = response.content.decode('utf-8')
+    lines = text.strip().split('\n')
 
     ids: List[int] = []
     for line in lines:
