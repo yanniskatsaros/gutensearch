@@ -8,6 +8,7 @@ from multiprocessing import cpu_count, Pool
 from itertools import chain
 from io import StringIO
 from pprint import pprint
+from typing import List, Set, Union
 
 import psycopg2  # type: ignore
 
@@ -204,6 +205,8 @@ def download_main(args: Namespace):
     if args.exclude is not None:
         with open(args.except_ids, 'r') as f:
             exclude = [int(i.strip()) for i in f.readlines()]
+
+        ids = parse_gutenberg_index()
         ids = list(set(ids) - set(exclude))
 
     if args.use_metadata:
@@ -261,10 +264,11 @@ def load_main(args: Namespace):
         log.info('Writing results to database')
         # create an in-memory file-stream to copy the data
         # using Postgres' high performance `COPY` command
-        words = []  # used later for distinct_words
+        words: List[Union[str, int]] = []  # used later for distinct_words
         with StringIO() as fio:
             for d in records:
                 words.append(d['word'])
+
                 text = '\t'.join(str(v) for v in d.values())
                 fio.write(text + '\n')
 
@@ -278,9 +282,8 @@ def load_main(args: Namespace):
         cur.execute('TRUNCATE TABLE distinct_words')
 
         log.info('Writing new distinct words to database')
-        words = set(words)
         with StringIO() as fio:
-            for w in words:
+            for w in set(words):
                 fio.write(f'{w}\n')
             fio.seek(0)
             cur.copy_from(fio, 'distinct_words')
@@ -325,8 +328,8 @@ def word_main(args: Namespace):
         sys.exit(0)
 
     if args.output == 'json':
-        results = [dict(r._asdict()) for r in results]
-        pprint(results)
+        records = [dict(r._asdict()) for r in results]
+        pprint(records)
         sys.exit(0)
 
     if args.output == 'tsv':
@@ -359,8 +362,8 @@ def doc_main(args: Namespace):
         sys.exit(0)
 
     if args.output == 'json':
-        results = [dict(r._asdict()) for r in results]
-        pprint(results)
+        records = [dict(r._asdict()) for r in results]
+        pprint(records)
         sys.exit(0)
 
     if args.output == 'tsv':

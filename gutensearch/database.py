@@ -39,7 +39,9 @@ def dbconfig() -> Dict[str, str]:
         'password': POSTGRES_PASSWORD,
     }
 
-def query(sql: str, params: Optional[Tuple[Any]] = None, limit: Optional[int] = None) -> List[NamedTuple]:
+def query(sql: str,
+          params: Optional[Tuple[Any, ...]] = None,
+          limit: Optional[int] = None) -> List[NamedTuple]:
     """
     Convenience function to easily execute a read-only query
     from the database and return the results.
@@ -177,8 +179,8 @@ def query_distinct_words(sort: bool = False) -> List[str]:
         A list of every distinct word in the database
 
     """
-    records = query('SELECT * FROM distinct_words')
+    records = query('SELECT word FROM distinct_words')
     if sort:
-        return sorted([r.words for r in records])
+        return sorted([r.word for r in records]) # type: ignore
 
-    return [r.word for r in records]
+    return [r.word for r in records] # type: ignore
