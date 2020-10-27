@@ -138,7 +138,7 @@ def search_document(id_: int,
 
     Parameters:
         id_: The document id to search for
-        min_length: Exclude any words in the search with less than a minimum word length
+        min_length: Exclude any words in the search with less than a minimum character length
         limit: Return only the records with the top `n` most frequent words
 
     Returns:
