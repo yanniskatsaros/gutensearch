@@ -560,33 +560,36 @@ This equates to roughly __267,570 records loaded into the table per second__, on
 For a database with over 134+ million records, we have the following benchmarks. These were timed using the following setup in an `ipython` terminal using the `%timeit` cell magic. These are likely _optimistic_ estimates since the same word/pattern is repeatedly being searched for in a single `%timeit` block of loops.
 
 ```python
-from gutensearch.database import search_word
-
-word = ...
-fuzzy = ...
-limit = ...
-
-%timeit search_word(word, fuzzy, limit)
+>>> from gutensearch.database import search_word
+>>> %timeit search_word(...)
 ```
 
-{{ table }}
+| Word | Fuzzy | Limit | Result |
+|:-:|:-:|:-:|-|
+| fish | FALSE | 10 | 38.9 ms ± 690 µs per loop (mean ± std. dev. of 7 runs, 10 loops each) |
+| acceptance | FALSE | 10 | 31.6 ms ± 12.9 ms per loop (mean ± std. dev. of 7 runs, 1 loop each) |
+| consumable | FALSE | 10 | 9.43 ms ± 656 µs per loop (mean ± std. dev. of 7 runs, 100 loops each) |
+| fish% | FALSE | 10 | 19.6 s ± 964 ms per loop (mean ± std. dev. of 7 runs, 1 loop each) |
+| doctor_ | FALSE | 10 | 18.4 s ± 533 ms per loop (mean ± std. dev. of 7 runs, 1 loop each) |
+| %ing | FALSE | 10 | 31.7 s ± 930 ms per loop (mean ± std. dev. of 7 runs, 1 loop each) |
+| aquaintence | TRUE | 10 | 1min 24s ± 1.98 s per loop (mean ± std. dev. of 7 runs, 1 loop each) |
 
 ### Document Search
 
 For a database with over 134+ million records, we have the following benchmarks. These were timed using the following setup in an `ipython` terminal using the `%timeit` cell magic. These are likely _optimistic_ estimates since the same document is repeatedly being searched for in a single `%timeit` block of loops.
 
 ```python
-from gutensearch.database import search_document
-
-
-id_ = ...
-min_length = ...
-limit = ...
-
-%timeit search_document(id_, min_length, limit)
+>>> from gutensearch.database import search_document
+>>> %timeit search_document(...)
 ```
 
-{{ table }}
+| Document ID | Min Length | Limit | Result |
+|:-:|:-:|:-:|-|
+| 8419 | 4 | 10 | 31.4 ms ± 786 µs per loop (mean ± std. dev. of 7 runs, 10 loops each) |
+| 8419 | 8 | 10 | 22 ms ± 1.25 ms per loop (mean ± std. dev. of 7 runs, 10 loops each) |
+| 8419 | 12 | 10 | 13.4 ms ± 565 µs per loop (mean ± std. dev. of 7 runs, 100 loops each) |
+| 8419 | 16 | 10 | 11.8 ms ± 107 µs per loop (mean ± std. dev. of 7 runs, 100 loops each) |
+| 8419 | 20 | 10 | 12.2 ms ± 356 µs per loop (mean ± std. dev. of 7 runs, 100 loops each) |
 
 ## Future Work
 
