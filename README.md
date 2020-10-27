@@ -1,6 +1,21 @@
 # `gutensearch` :mag: :books:
 A searchable database and command-line-interface for words and documents from Project Gutenberg
 
+## Table of Contents
+
+- [Installation](#installation)
+    - [Alternative Installation](#alternative-installation)
+- [Usage](#usage)
+    - [`gutensearch download`](#gutensearch-download)
+        - [Logging, Error Handling, and Metadata](#logging-error-handling-and-metadata)
+    - [`gutensearch load`](#gutensearch-load)
+    - [`gutensearch word`](#gutensearch-word)
+    - [`gutensearch doc`](#gutensearch-doc)
+- [Troubleshooting](#troubleshooting)
+- [Discussion and Technical Details](#discussion-and-technical-details)
+- [Benchmarks](#benchmarks)
+- [Future Work](#future-work)
+
 ## Installation
 
 The simplest way to install and run the project is using `docker` and `docker-compose`. To get started, in this directory (containing the `docker-compose.yml` file) run (or `docker-compose up --build -d` to run in detached mode)
@@ -19,7 +34,7 @@ If you have already downloaded data locally using `gutensearch download` (see th
 
 If you run into any issues, please see the [troubleshooting](#troubleshooting) section below.
 
-## Alternative Installation
+### Alternative Installation
 
 Alternatively, for a more "lightweight" installation where only the Postgres database is containerized, run
 
@@ -87,7 +102,7 @@ optional arguments:
   -h, --help            show this help message and exit
 ```
 
-### Download
+### `gutensearch download`
 
 To download files from Project Gutenberg, use `gutensearch download`. All downloads make use of the [Aleph Gutenberg Mirror](https://aleph.gutenberg.org/) in order to be respectful to the Project Gutenberg servers, in accordance with their ["robot access" guidelines](https://www.gutenberg.org/policy/robot_access.html). Please see the [complete list of Project Gutenberg Mirrors](https://www.gutenberg.org/MIRRORS.ALL) for more information.
 
@@ -176,7 +191,7 @@ Finally, if a download was interrupted or stopped, you can pick back up to where
 
 which will begin download any files from the Gutenberg Index that are not present in the metadata file.
 
-### Logging, Error Handling, and Metadata
+#### Logging, Error Handling, and Metadata
 
 Unfortunately, some of the document id's in the Gutenberg Index do not have valid url's, or a url that follows the pattern of all the other files. Furthermore, even if the url is valid, there may be no book because the id may be reserved for the future. All of these cases are automatically handled during the download. For example,
 
@@ -231,6 +246,30 @@ Although logging is helpful for monitoring download progress, the `.meta.json` f
 }
 ```
 
-## Load
+### `gutensearch load`
+
+...
+
+### `gutensearch word`
+
+...
+
+### `gutensearch doc`
+
+...
+
+## Troubleshooting
+
+...
+
+## Discussion and Technical Details
+
+...
+
+## Benchmarks
+
+...
+
+## Future Work
 
 ...
