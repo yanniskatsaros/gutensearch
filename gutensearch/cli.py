@@ -156,6 +156,38 @@ def make_parser() -> ArgumentParser:
     )
     parser_word.set_defaults(__word=True)
 
+    # subparser for searching for a document by id
+    parser_doc = subparser.add_parser(
+        'doc',
+        help='Find the most frequently occuring words in the given document id'
+    )
+    parser_doc.add_argument(
+        'id',
+        help='The document id to search for',
+    )
+    parser_doc.add_argument(
+        '-l',
+        '--limit',
+        help='Limit the total number of results returned',
+        type=int,
+        default=10,
+    )
+    parser_doc.add_argument(
+        '-m',
+        '--min-length',
+        help='Exclude any words in the search less than a minimum character length',
+        type=int,
+        default=4,
+    )
+    parser_doc.add_argument(
+        '-o',
+        '--output',
+        help='The output format when printing to stdout',
+        choices=OUTPUT_CHOICES,
+        default='tsv',
+    )
+    parser_doc.set_defaults(__doc=True)
+
     return parser
 
 def download_main(args: Namespace):
@@ -294,6 +326,40 @@ def word_main(args: Namespace):
             print(values)
         sys.exit(0)
 
+def doc_main(args: Namespace):
+    """
+    Entrypoint for the `gutensearch doc` command-line-interface
+    """
+    try:
+        results = search_document(args.id, args.min_length, args.limit)
+    except psycopg2.OperationalError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
+
+    if len(results) == 0:
+        sys.exit(0)
+
+    if args.output == 'json':
+        results = [dict(r._asdict()) for r in results]
+        pprint(results)
+        sys.exit(0)
+
+    if args.output == 'tsv':
+        fields = '\t'.join(results[0]._fields)
+        print(fields)
+        for r in results:
+            values = '\t'.join(str(x) for x in r._asdict().values())
+            print(values)
+        sys.exit(0)
+
+    if args.output == 'csv':
+        fields = ','.join(results[0]._fields)
+        print(fields)
+        for r in results:
+            values = ','.join(str(x) for x in r._asdict().values())
+            print(values)
+        sys.exit(0)
+
 def main():
     """
     Entrypoint for the `gutensearch` command-line-interface
@@ -309,3 +375,6 @@ def main():
 
     if hasattr(args, '__word'):
         word_main(args)
+
+    if hasattr(args, '__doc'):
+        doc_main(args)
