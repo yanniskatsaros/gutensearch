@@ -112,9 +112,7 @@ def search_word(word: str,
 
     if fuzzy:
         # we need to get the "corpus" of text available first
-        # FIXME this is too slow
-        records = query('SELECT DISTINCT word FROM words')
-        corpus = [r.word for r in records]
+        corpus = query_distinct_words()
         match = closest_match(word, corpus)
 
         return search_word(match, fuzzy=False, limit=limit)
@@ -166,3 +164,21 @@ def search_document(id_: int,
      ORDER BY 3 DESC
     """.strip()
     return query(sql, params=(id_, ), limit=limit)
+
+def query_distinct_words(sort: bool = False) -> List[str]:
+    """
+    Convenience method to retrieve a list of every
+    distinct word available in the database.
+
+    Parameters:
+        sort: Return the results sorted if set to `True`
+
+    Returns:
+        A list of every distinct word in the database
+
+    """
+    records = query('SELECT * FROM distinct_words')
+    if sort:
+        return sorted([r.words for r in records])
+
+    return [r.word for r in records]
