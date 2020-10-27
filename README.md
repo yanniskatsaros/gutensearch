@@ -228,6 +228,8 @@ For example, to only display warning messages or higher (severity messages), run
 
 Although logging is helpful for monitoring download progress, the `.meta.json` file is the simplest source of finding information for successfully downloaded files. An example snippet of this file is provided below. Each key represents the id of the document.
 
+`.meta.json`
+
 ```json
 {
   "5389": {
@@ -250,11 +252,170 @@ Although logging is helpful for monitoring download progress, the `.meta.json` f
 
 ### `gutensearch load`
 
-...
+Once you have obtained the raw documents (presumably using `gutensearch download`) you'll want to __parse__ and __load__ their contents into the database. The `gutensearch load` command provides an easy interface to perform this task.
+
+> __Warning__ Make sure the Postgres service is available before running this command or else connecting to the database will fail. See the [installation and setup instructions](#installation) above for more information.
+
+```
+$ gutensearch load --help
+usage: gutensearch load [-h] [--path PATH] [--limit LIMIT] [--multiprocessing]
+                        [--log-level {notset,debug,info,warning,error,critical}]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --path PATH           The path to the directory containing the documents
+  --limit LIMIT         Only parse and load a limited number of documents
+  --multiprocessing     Perform the parse/load in parallel using multiple
+                        cores
+  --log-level {notset,debug,info,warning,error,critical}
+                        Set the level for the logger
+```
+
+To parse and load documents that are in the `data/` directory, from the current directory run
+
+```
+$ gutensearch load
+2020-10-27 12:25:05 [INFO] gutensearch.load - Parsing 21421 documents using 1 core
+```
+
+which will begin processing every file in the `data/` directory (default `--path`) using a single core.
+
+To specify a different directory name other than `data/` (the default) add the `--path` argument
+
+```
+$ gutensearch load --path documents
+2020-10-27 12:25:05 [INFO] gutensearch.load - Parsing 21421 documents using 1 core
+```
+
+To limit the total number of documents to parse and load, specify a `--limit`
+
+```
+$ gutensearch load --limit 50
+2020-10-27 12:26:44 [INFO] gutensearch.load - Parsing 50 documents using 1 core
+```
+
+Furthermore, for a significant speedup in parsing performance, you can parse multiple documents in parallel by specifying the `--multiprocessing` flag. This is especially useful when parsing a large number of documents at once. Below is an example of the entire parse/load pipeline for 21,400+ documents.
+
+```
+$ gutensearch load --path data/ --multiprocessing
+2020-10-27 00:31:15 [INFO] gutensearch.load - Parsing 21421 documents using 12 cores
+2020-10-27 00:40:42 [INFO] gutensearch.load - Temporarily dropping indexes on table: words
+2020-10-27 00:40:42 [INFO] gutensearch.load - Writing results to database
+2020-10-27 00:51:18 [INFO] gutensearch.load - Finished writing data to database
+2020-10-27 00:51:18 [INFO] gutensearch.load - Truncating table: distinct_words
+2020-10-27 00:51:18 [INFO] gutensearch.load - Writing new distinct words to database
+2020-10-27 00:53:31 [INFO] gutensearch.load - Finished writing distinct words to database
+2020-10-27 00:53:31 [INFO] gutensearch.load - Recreating indexes on table: words
+2020-10-27 00:58:22 [INFO] gutensearch.load - Committing changes to database
+2020-10-27 00:58:22 [INFO] gutensearch.load - Running vacuum analyze on table: words
+2020-10-27 00:58:56 [INFO] gutensearch.load - Committing changes to database
+```
+
+In short, the command will identify all `.txt` files available in the specified directory, parse their contents by cleaning/tokenizing each word, and counting unique instances of each token. Then, the data is bulk loaded into Postgres, re-creating indexes and running statistics on the table(s) before exiting. Fore more details on this process, please see the [Discussion and Technical Details](#discussion-and-technical-details) section below.
 
 ### `gutensearch word`
 
-...
+With the words and counts of our documents parsed and loaded into the database, we can now perform a variety of interesting searches! The first type of search we can perform is to find the top `n` documents where a given word appears. There are a variety of options and features available.
+
+```
+$ gutensearch word --help
+usage: gutensearch word [-h] [-l LIMIT] [--fuzzy] [-o {csv,tsv,json}] word
+
+positional arguments:
+  word                  The word to search for in the database
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -l LIMIT, --limit LIMIT
+                        Limit the total number of results returned
+  --fuzzy               Allow search to use fuzzy word matching
+  -o {csv,tsv,json}, --output {csv,tsv,json}
+                        The output format when printing to stdout
+```
+
+For example, to find the 10 documents where the word "fish" shows up most frequently, run
+
+```
+$ gutensearch word fish
+word    document_id   count
+fish	3611	3756
+fish	18542	1212
+fish	9937	590
+fish	8419	545
+fish	10136	531
+fish	683     405
+fish	21008	353
+fish	18298	309
+fish	4219	309
+fish	6745	300
+```
+
+By default, the program will limit the results to the top 10 documents found. To change this behavior, set the `--limit` flag to a different option. For example,
+
+```
+$ gutensearch word fish --limit 5
+word    document_id   count
+fish	3611	3756
+fish	18542	1212
+fish	9937	590
+fish	8419	545
+fish	10136	531
+```
+
+By default, the results will be printed to `stdout` in `tsv` format (tab-separated values). To change this behavior, set the value for the `--output` flag. You can choose from one of three options: `{tsv, csv, json}`, representing tab-separated-values, comma-separated-values, or JSON, respectively. Each are compatible so that you can redirect output directly to a file in a valid output format. For example the same search from above as JSON would be
+
+```
+$ gutensearch word fish --output json
+[{'count': 3756, 'document_id': 3611, 'word': 'fish'},
+ {'count': 1212, 'document_id': 18542, 'word': 'fish'},
+ {'count': 590, 'document_id': 9937, 'word': 'fish'},
+ {'count': 545, 'document_id': 8419, 'word': 'fish'},
+ {'count': 531, 'document_id': 10136, 'word': 'fish'},
+ {'count': 405, 'document_id': 683, 'word': 'fish'},
+ {'count': 353, 'document_id': 21008, 'word': 'fish'},
+ {'count': 309, 'document_id': 18298, 'word': 'fish'},
+ {'count': 309, 'document_id': 4219, 'word': 'fish'},
+ {'count': 300, 'document_id': 6745, 'word': 'fish'}]
+```
+
+or could you save results directly to a CSV file using
+
+```
+$ gutensearch word fish --output csv > fish.csv
+```
+
+Furthermore, instead of full words you can also provide __word patterns__ such as `fish%` or `doctor_`. Any SQL string pattern is valid and may be used. For example,
+
+```
+$ gutensearch word fish% -l 5 -o csv
+word,document_id,count
+fish,3611,3756
+fishing,3611,2036
+fishermen,3611,1216
+fish,18542,1212
+fish,9937,590
+```
+
+As we can see, instead of just "fish", the search returned results matching "fish", "fishing", "fisherman" and more.
+
+Finally, you can even execute a search using "fuzzy word matching" for any word that cannot be effectively represented using a word pattern. To enable this behavior, set the `--fuzzy` flag.
+
+```
+$ gutensearch word aquaintence -o csv --fuzzy
+word,document_id,count
+aquaintance,19704,2
+aquaintance,3292,1
+aquaintance,15772,1
+aquaintance,13538,1
+aquaintance,3141,1
+aquaintance,968,1
+aquaintance,947,1
+aquaintance,10699,1
+aquaintance,16014,1
+aquaintance,15864,1
+```
+
+As we can see, the search returned results for the "best possible match" for the word "acquaintance", given the provided query had the word misspelled (missing the "c" after "q", and "e" instead of "a"). Fuzzy word matching uses the ["ratio score"](https://docs.python.org/3.9/library/difflib.html#difflib.SequenceMatcher.ratio) algorithm, and picks the word in the available corpus of text in the database with the highest ratio to the provided word. For more details, please see the [Discussion and Technical Details](#discussion-and-technical-details) section below.
 
 ### `gutensearch doc`
 
