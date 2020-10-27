@@ -10,6 +10,8 @@ import psycopg2                               # type: ignore
 from psycopg2.extensions import connection    # type: ignore
 from psycopg2.extras import NamedTupleCursor  # type: ignore
 
+from .parse import closest_match
+
 POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'localhost')
 POSTGRES_DB = os.getenv('POSTGRES_DB', 'postgres')
 POSTGRES_USER = os.getenv('POSTGRES_USER', 'postgres')
@@ -71,6 +73,7 @@ def query(sql: str, params: Optional[Tuple[Any]] = None, limit: Optional[int] = 
     return results
 
 def search_word(word: str,
+                fuzzy: bool = False,
                 limit: Optional[int] = None) -> List[NamedTuple]:
     """
     Searches the `gutensearch` database for every document with the given word
@@ -78,19 +81,51 @@ def search_word(word: str,
 
     Parameters:
         word: The word to search for
+        fuzzy:
+            If `True` allow search to use fuzzy word matching.
+            If `False`, only return results for exact matches.
         limit: Return only the records with the top `n` most frequent words
 
     Returns:
         A list of records where each record is an instance of a `NamedTuple`
 
     """
+    # check if the word supplied is actually a word pattern such
+    # as fish% or thing_
+    has_pattern = False
+    if ('%' in word) or ('_' in word):
+        has_pattern = True
+
+    if has_pattern:
+        sql = """
+        SELECT word,
+               document_id,
+               count
+          FROM words
+         WHERE word LIKE %s
+         ORDER BY 3 DESC
+        """.strip()
+        return query(sql, params=(word, ), limit=limit)
+
+    if has_pattern and fuzzy:
+        raise ValueError('Cannot search using both a pattern and fuzzy word matching')
+
+    if fuzzy:
+        # we need to get the "corpus" of text available first
+        # FIXME this is too slow
+        records = query('SELECT DISTINCT word FROM words')
+        corpus = [r.word for r in records]
+        match = closest_match(word, corpus)
+
+        return search_word(match, fuzzy=False, limit=limit)
+
     sql = """
     SELECT word,
-           document_id,
-           count
-      FROM words
-     WHERE word = %s
-     ORDER BY 3 DESC
+            document_id,
+            count
+        FROM words
+        WHERE word = %s
+        ORDER BY 3 DESC
     """.strip()
     return query(sql, params=(word, ), limit=limit)
 
