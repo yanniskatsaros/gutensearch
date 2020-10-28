@@ -45,7 +45,7 @@ After this step has completed, you should see something similiar to this output
 2020-10-28 01:48:05 [INFO] gutensearch.load - Committing changes to database
 ```
 
-!!! check
+!!! check "Success"
     Your `gutensearch` cli is now setup and ready to be used! Head over to the [usage](#usage) section on information on how to get started and what commands are available.
 
 For more information on this command, see the [`gutensearch load`](#load) section below. If you run into any issues during installation & setup, please see the [troubleshooting](#troubleshooting) section below.
@@ -105,7 +105,7 @@ If installed properly, you can now load the data into the database in a similar 
 gutensearch load --path ../data/ --multiprocessing
 ```
 
-!!! check
+!!! check "Success"
     Your `gutensearch` cli is now setup and ready to be used! Head over to the [usage](#usage) section on information on how to get started and what commands are available.
 
 ## Usage
@@ -219,7 +219,8 @@ If you only want to download a certain subset of documents by their id, create a
 57076
 ```
 
-```gutensearch download --only ids.txt
+```
+gutensearch download --only ids.txt
 ```
 
 this will only download the documents with the id's specified in the file above.
