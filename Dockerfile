@@ -7,4 +7,5 @@ COPY gutensearch /code/gutensearch
 
 RUN python -m pip install .
 
+WORKDIR /
 ENTRYPOINT [ "/bin/bash" ]
