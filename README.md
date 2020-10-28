@@ -47,8 +47,20 @@ The example data provided has 1000 documents that are ready to be parsed and loa
 After this step has completed, you should see something similiar to this output
 
 ```
-
+2020-10-28 01:46:11 [INFO] gutensearch.load - Parsing 1000 documents using 6 cores
+2020-10-28 01:46:58 [INFO] gutensearch.load - Temporarily dropping indexes on table: words
+2020-10-28 01:46:58 [INFO] gutensearch.load - Writing results to database
+2020-10-28 01:47:36 [INFO] gutensearch.load - Finished writing data to database
+2020-10-28 01:47:36 [INFO] gutensearch.load - Truncating table: distinct_words
+2020-10-28 01:47:36 [INFO] gutensearch.load - Writing new distinct words to database
+2020-10-28 01:47:49 [INFO] gutensearch.load - Finished writing distinct words to database
+2020-10-28 01:47:49 [INFO] gutensearch.load - Recreating indexes on table: words
+2020-10-28 01:48:04 [INFO] gutensearch.load - Committing changes to database
+2020-10-28 01:48:04 [INFO] gutensearch.load - Running vacuum analyze on table: words
+2020-10-28 01:48:05 [INFO] gutensearch.load - Committing changes to database
 ```
+
+Your `gutensearch` cli is now setup and ready to be used! Head over to the [usage](#usage) section on information on how to get started and what commands are available.
 
 For more information on this command, see the [`gutensearch load`](#load) section below. If you run into any issues during installation & setup, please see the [troubleshooting](#troubleshooting) section below.
 
