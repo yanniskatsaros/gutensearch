@@ -13,7 +13,17 @@ A searchable database and command-line-interface for words and documents from Pr
     - [`gutensearch doc`](#gutensearch-doc)
 - [Troubleshooting](#troubleshooting)
 - [Discussion and Technical Details](#discussion-and-technical-details)
+    - [Design](#design)
+    - [Document ID](#document-id)
+    - [Parsing Strategy](#parsing-strategy)
+    - [Database Design](#database-design)
+    - [Database Loading Strategy](#database-loading-strategy)
+    - [Fuzzy Word Matching](#fuzzy-word-matching)
 - [Benchmarks](#benchmarks)
+    - [Parsing](#parsing)
+    - [Loading](#loading)
+    - [Word Search](#word-search)
+    - [Document Search](#document-search)
 - [Future Work](#future-work)
 
 ## Installation
@@ -515,7 +525,53 @@ If you are attempting to parse/load a large number of documents at once, you may
 
 ## Discussion and Technical Details
 
-...
+The project is essentially divided into four different pieces, each responsible for different tasks in the entire workflow.
+
+- `cli.py`: Contains the code for the command-line-interface implementation and provides the `main()` function as the entrypoint for the entire interface
+- `database.py`: This module contains any database-related code and functions. Most of these are utilities for connecting to and querying the database. Furthermore, this module includes two functions for searching for words or documents from the database.
+- `download.py`: This module provides the implementations for downloading and saving data from Project Gutenberg, including building up the appropriate URL patterns, downloading a document, and saving documents.
+- `parse.py`: This module contains any parsing related functions, mostly related to parsing the contents of a document, cleaning it, "tokenization", and counting unique instance of words.
+
+### Design
+
+The project and code is designed in such a way that a "client" can choose to download all or some of the files (by their unique document id) locally, then parse and load them into the database. The database chosen was Postgres because it is what I'm most familiar with, and with a few simple indexing strategies provides excellent performance for the search requirements provided. Because Postgres supports concurrent reads/writes from multiple clients, it's a suitable choice for the database if this program was being executed on multiple machines at once. Although there is no mechanism in the current implementation for synchronization of files downloaded between multiple machines, this could be added by the use of a distributed task queue such as Celery. Aside from that, the current implementation is suitable for downloading and parsing documents from Project Gutenberg, and loading the tokenized word counts into a single database.
+
+### Document ID
+
+One aspect of the design that needed to be considered would be how documents would be identified. Luckily, it turns out that Project Gutenberg provides their own [Gutenberg Index](https://www.gutenberg.org/dirs/GUTINDEX.ALL). Unfortunately, I could not find a "machine-readbale" format (despite a lot of digging around) so this needed to be parsed. However, this was not a big problem as it could be parsed once (only takes a few seconds) and then saved locally for any future use. The `gutenberg-index.txt` file in the source code provides a list of every document id listed on Project Gutenberg. This was the key to making the download implementations simple and straightforward.
+
+It turns out that documents saved on Project Gutenberg (the `aleph.gutenberg.org` mirror in specific) follow a very specific url pattern. Once I realized that this pattern existed, it made constructing url's for a given document id very simple. For example, for document with id `6131` has the following url pattern: `https://aleph.gutenberg.org/6/1/3/6131/`. If you follow the link, you'll see that this is a directory of several files, including both text and zip files. At this point, I realized a small possible issue that required I add a little bit of complexity to my design. In this particular example, you'll notice there are more than one text file, `6131-0.txt` and `6131.txt`. As far as I could tell, the contents of these two files were identical (I checked around 10 or so random documents and this proved to be the case for all of them, but I could have missed something, and this may not be the case for _all_ documents). Furthermore, some documents only have a single text file (some with the trailing -0 and others without) while other documents had a trailing -8 in their name. For this reason, I decided that my download pattern for a given document id would be as follows:
+
+1. Construct url for a given document id. Ex: given id `6131` return `https://aleph.gutenberg.org/6/1/3/6131/`
+2. Make a request to this url, and check that it's valid, no 404's are thrown etc.
+3. If valid, find all links on the site (`<a>` tags) ending with `.txt` and store them
+4. If more than one `.txt` file was found, keep the first one found in this order of precedence: `{id}.txt`, `{id}-0.txt`, `{id}-8.txt`
+
+Once a document was successfully downloaded, it was saved to the target directory with the name `{id}.txt`, regardless of the name used when being downloaded.
+
+### Parsing Strategy
+
+Once one or more documents are available locally (in whatever directory name the user wants, `data/` by default) the user can load them into the database. But, before this is done each document needs to be parsed, tokenized, and unique word instances must be counted. For this step, I tried to take the simplest approach possible in order to keep the code readable and as performant as possible.
+
+The entire parsing pipeline only requires a single pass over the document text to be cleaned and tokenized, and then one more pass to count unique words. If you inspect the implementatin of `gutensearch.parse.lazytokenize` you'll see that this function returns a generator. This generator will iterate through each character in the given body of text. Each character encountered is added to a `word` "buffer", then `yield`ed to the user , and the `word` buffer flushed when an "invalid" character was encountered. Only upper or lower case letter characters were considered valid (ASCII decimal values between 65 and 90, and 97 and 122). Whenever a valid character was stored in the `word` buffer, it was saved as lower case. A "lazy" strategy was chosen so that theoretically, a document that could not fit in memory all at once could still be efficiently parsed. Furthermore, this function is pure and produces no side-effects which makes it ideal to be used in a parallelized setting.
+
+Once a document was parsed and cleaned, I made use of the built-in Python [`Counter`](https://docs.python.org/3/library/collections.html#collections.Counter) class from the `collections` module to count unique instances of each word. In conjunction with the lazy tokenizer described above, I implemented the `gutensearch.parser.parse_document` function to parse, tokenize, and count word instances for a given document. This function can optionally be used with `multiprocessing` which is an option provided to the user as part of the `gutensearch load` command.
+
+### Database Design
+
+As briefly discussed above, Postgres was chosen for this project because I am familiar with it, it is high performance, and full-featured. The database only contains two tables, `words` and `distinct_words`. The schema for this database can be found in `schema.sql` in this directory. We'll focus on `words` first.
+
+The `words` table consists of three columns, `word`, `document_id`, and `count`. It contains all of the records parsed from the sections described above. Each record contains a single word, the document id that it was found in, and the frequency (count) that it occurred. The key to making searches fast and effective over this table was to creating two indexes over this table. The first is an index on `words` over the column `word`. This allows for fast, indexed look-up of a specific word. Furthermore, the second index is an index on `words` over the column `document_id` which similarly provides fast, indexed look-up of a specific document in the table. Both of these indexes are effective because the cardinality of the columns are _relatively_ small compared to the total number of records in the entire table. For the case analyzed with 21,421 unique documents containing over 134 million rows there were roughly 3.4 million unique words. Therefore, we'd expect that on average, searches for unique documents is faster than for unique words. Please see the [benchmarks](#benchmarks) section for more information.
+
+The second table, `distinct_words` is a table with a single column `word` and contains every unique (distinct) instance of a word in the `words` table. The idea behind this table was to provide a pre-computed set that could be used as a corpus for performing fuzzy word matching. It turned out in practice that this was an ineffective approach for performing fuzzy word matching as querying the `distinct_words` table whenever a fuzzy word match was requested (in addition to finding the closest match) was still relatively slow. Although __word pattern__ matching using SQL string patterns still proved to be effective, if true fuzzy word matching was a hard requirement for this project, more work would need to be done to improve this aspect of the performance.
+
+### Database Loading Strategy
+
+It can be tricky to efficiently load a large number of records into a table at once, especially in a relational database. However, Postgres provides a few [helpful tips](https://www.postgresql.org/docs/current/populate.html) for performing "bulk loads" efficiently. I have made use of a few of these suggestions in my loading implementation. In short, after all documents have been parsed into words and counts, they are still in memory. In order to effectively write all of the data to the the `words` table described above, I make use of the `COPY FROM` command which allows for loading all of the rows in a single command instead of a series of `INSERT` commands. In order to do this, [`psycopg2.cursor.copy_from`](https://www.psycopg.org/docs/cursor.html#cursor.copy_from) expects an instance of of an `IO` object. Writing all of the data as a single text file to disk, then reading it back in to memory would have been slow and ineffective. Instead, I made use of the [`io.StringIO`](https://docs.python.org/3/library/io.html#io.StringIO) class to incrementally build up a in-memory text buffer. Each record was written as tab-delimited values to the text buffer (as expected by Postgres) then efficiently written into the `words` database. Prior to performing this operation, any indexes on `words` were dropped, then later re-created after writing the data. Furthermore, after all of the data had been written, a `VACUUM ANALYZE` command was also dispatched to provide further optimizations and up-to-date statistics that are used to improve the performance of the query planner. This strategy was used to effectively store over 134+ million records in around 8.5 minutes, after parsing 21,000+ documents. Please see the [benchmarks](#benchmarks) section below for more information.
+
+### Fuzzy Word Matching
+
+As mentioned in the [database design](#database-design) section above, this project provides a fuzzy word matching feature that can be used when searching for words in the database. I took a simple approach inspired by the following [blog post from SeatGeek](https://chairnerd.seatgeek.com/fuzzywuzzy-fuzzy-string-matching-in-python/) when announcing the open-sourcing of their [`fuzzywuzzy`](https://github.com/seatgeek/fuzzywuzzy) package. I opted not to include `fuzzywuzzy` as part of my project in order to keep the dependencies as minimal as possible. Instead, I created a custom function (found under `gutensearch.parse.closest_match`) that makes use of the Python built-in [`SequenceMatcher`](https://docs.python.org/3.9/library/difflib.html#difflib.SequenceMatcher) object. Given a word and a corpus of words, the function will return a word from the corpus that most closely matches the given word by choosing the word with the highest "ratio". If there are any ties, they are resolved by selecting the first instance of the highest ratio found in the corpus. More information on the performance of this implementation in practice, please see the [benchmarks](#benchmarks) below.
 
 ## Benchmarks
 
@@ -574,6 +630,31 @@ For a database with over 134+ million records, we have the following benchmarks.
 | %ing | FALSE | 10 | 31.7 s ± 930 ms per loop (mean ± std. dev. of 7 runs, 1 loop each) |
 | aquaintence | TRUE | 10 | 1min 24s ± 1.98 s per loop (mean ± std. dev. of 7 runs, 1 loop each) |
 
+#### Fuzzy Word Matching
+
+For a database with over 3.4+ million unique words, we have the following benchmarks. The first is the typical time taken to query the entire "corpus" of distinct words from the database, and the second benchmarks the performance of performing a fuzzy word match against the corpus of text.
+
+```python
+>>> from gutensearch.database import query_distinct_words
+>>> %timeit query_distinct_words()
+```
+
+```
+3.8 s ± 254 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+```
+
+```python
+>>> from gutensearch.parse import closest_match
+>>> from gutensearch.database import query_distinct_words
+>>>
+>>> corpus = query_distinct_words()
+>>> %timeit closest_match('aquaintence', corpus)
+```
+
+```
+1min 25s ± 1.27 s per loop (mean ± std. dev. of 7 runs, 1 loop each)
+```
+
 ### Document Search
 
 For a database with over 134+ million records, we have the following benchmarks. These were timed using the following setup in an `ipython` terminal using the `%timeit` cell magic. These are likely _optimistic_ estimates since the same document is repeatedly being searched for in a single `%timeit` block of loops.
@@ -593,4 +674,8 @@ For a database with over 134+ million records, we have the following benchmarks.
 
 ## Future Work
 
-...
+In summary, the core requirements of this project have been met and provide satisfactory performance (between 8-40 ms on average for an exact word match, and 8-30 ms on average for a document id search). Furthermore, the command-line-interface provides a variety of features for downloading, parsing, loading, and performing various kinds of searches over the data. However, there is always room for improvement. Depending on the needs of the project, the following are a few possible enhancements and improvements that can be made to this project:
+
+- Improve performance of fuzzy word matching. This would require some research and learning on my end, as I don't have much experience working with large amounts of text data.
+- Possibility to directly parse and load a document into the database directly after download without saving to disk. This could help improve performance, and simplify the overall data acquisition and ETL process.
+- Possibility for an "online" system that is constantly getting a list of document id's to download, parsing them, and loading them into the database. This could potentially be done using a distributed task queue that provides a queue of documents that need to be processed.
