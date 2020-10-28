@@ -32,9 +32,11 @@ The simplest way to install and run the project is using `docker` and `docker-co
 
 - `docker-compose up --build`
 
-This will build and start three services. The first is an empty Postgres database that has been initialized with the correct schema, and the second is the project documentation. Head over to `localhost:8000` on your browser to check them out! The third build is the project command-line-interface. 
+This will build and start three services. The first is an empty Postgres database that has been initialized with the correct schema, and the second is the project documentation.
 
-Once Docker compose has finished setting up, you can run the container with the command-line-interface installed using the following command. When specifying the volume to mount, this assumes you have kept the example `data/` directory one level above this directory.
+> __Tip__ Head over to `localhost:8000` on your browser to check the documenation out!
+
+The third and final service built is the project cli, called `gutensearch`. Once Docker compose has finished setting up, you can run the container with the command-line-interface installed using the following command. When specifying the volume to mount, this assumes you have kept the example `data/` directory one level above this directory.
 
 - `docker-compose run -v "$(pwd)/../data:/data" cli`
 
@@ -543,7 +545,7 @@ Make sure that the data directory you are attempting to mount __is not__ in the 
 
 __Docker kills a task/process when loading data into the database__
 
-If you are attempting to parse/load a large number of documents at once, you may run into memory issues with Docker. The default setting in the `cli` service in `docker-compose.yml` is set to 1 gigabyte. However, if you're only building and running the cli image independently, you may need to include a `--memory` flag during `docker run`. See the [Docker resource constraints documentation](https://docs.docker.com/config/containers/resource_constraints/#memory) for more information.
+If you are attempting to parse/load a large number of documents at once, you may run into memory issues with Docker. The default setting in the `cli` service in `docker-compose.yml` is set to 4 gigabytes. However, if you're only building and running the cli image independently, you may need to include a `--memory` flag during `docker run`. See the [Docker resource constraints documentation](https://docs.docker.com/config/containers/resource_constraints/#memory) for more information. Furthermore, you can simply modify the configuration in `docker-compose.yml` then re-run the steps in the [installation](#installation).
 
 ## Discussion and Technical Details
 
