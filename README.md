@@ -34,17 +34,23 @@ The simplest way to install and run the project is using `docker` and `docker-co
 
 This will build and start three services. The first is an empty Postgres database that has been initialized with the correct schema, and the second is the project documentation. Head over to `localhost:8000` on your browser to check them out! The third build is the project command-line-interface. 
 
-Once Docker compose has finished setting up, you can run the container with the command-line-interface installed using
+Once Docker compose has finished setting up, you can run the container with the command-line-interface installed using the following command. When specifying the volume to mount, this assumes you have kept the example `data/` directory one level above this directory.
 
-- `docker-compose run cli`
+- `docker-compose run -v "$(pwd)/../data:/data" cli`
 
-Depending on how many documents you are working with, you _may or may not_ need to tune the memory limits in the `docker-compose.yml` file prior to bringing the services up. See the [troubleshooting](#troubleshooting) section below for more details if necessary.
+then load the documents into the database using
 
-If you have already downloaded data locally using `gutensearch download` (see the [usage](#download) section below), you can mount the volume to the container at runtime. For example, if the `data/` directory is on your desktop,
+- `gutensearch load --path data/ --multiprocessing`
 
-- `docker-compose run -v "/Users/username/Desktop/data/:/data" cli`
+The example data provided has 1000 documents that are ready to be parsed and loaded. Depending on how many documents you are working with, you _may or may not_ need to tune the memory limits in the `docker-compose.yml` file prior to bringing the services up.
 
-If you run into any issues, please see the [troubleshooting](#troubleshooting) section below.
+After this step has completed, you should see something similiar to this output
+
+```
+
+```
+
+For more information on this command, see the [`gutensearch load`](#load) section below. If you run into any issues during installation & setup, please see the [troubleshooting](#troubleshooting) section below.
 
 ### Alternative Installation
 
@@ -88,6 +94,10 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
 ```
+
+If installed properly, you can now load the data into the database in a similar way as shown above (again, assuming the example data provided is one level above your current working directory)
+
+- `gutensearch load --path ../data/ --multiprocessing`
 
 ## Usage
 
