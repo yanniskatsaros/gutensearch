@@ -6,7 +6,7 @@ future==0.18.2
 idna==2.10
 importlib-metadata==2.0.0; python_version < "3.8"
 jinja2==2.11.2
-joblib==0.17.0; python_version > "2.7"
+joblib==1.2.0; python_version > "2.7"
 livereload==2.6.3
 lunr==0.5.8
 markdown==3.3.3
