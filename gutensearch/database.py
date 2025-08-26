@@ -3,20 +3,21 @@ This module provides functions to interface with the project
 Postgres database, including inserting/loading data and
 executing a variety of queries/searches.
 """
+
 import os
 from typing import Dict, List, NamedTuple, Tuple, Any, Optional
 
-import psycopg2                               # type: ignore
-from psycopg2.extensions import connection    # type: ignore
+import psycopg2  # type: ignore
 from psycopg2.extras import NamedTupleCursor  # type: ignore
 
 from .parse import closest_match
 
-POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'localhost')
-POSTGRES_DB = os.getenv('POSTGRES_DB', 'postgres')
-POSTGRES_USER = os.getenv('POSTGRES_USER', 'postgres')
-POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'postgres')
-POSTGRES_PORT = os.getenv('POSTGRES_PORT', '5432')
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "postgres")
+POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
+POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+
 
 def dbconfig() -> Dict[str, str]:
     """
@@ -32,16 +33,17 @@ def dbconfig() -> Dict[str, str]:
         - `password`
     """
     return {
-        'host': POSTGRES_HOST,
-        'port': POSTGRES_PORT,
-        'dbname': POSTGRES_DB,
-        'user': POSTGRES_USER,
-        'password': POSTGRES_PASSWORD,
+        "host": POSTGRES_HOST,
+        "port": POSTGRES_PORT,
+        "dbname": POSTGRES_DB,
+        "user": POSTGRES_USER,
+        "password": POSTGRES_PASSWORD,
     }
 
-def query(sql: str,
-          params: Optional[Tuple[Any, ...]] = None,
-          limit: Optional[int] = None) -> List[NamedTuple]:
+
+def query(
+    sql: str, params: Optional[Tuple[Any, ...]] = None, limit: Optional[int] = None
+) -> List[NamedTuple]:
     """
     Convenience function to easily execute a read-only query
     from the database and return the results.
@@ -63,20 +65,21 @@ def query(sql: str,
             cur.execute(sql, params)
         except Exception as e:
             cur.close()
-            raise(e)
-        
+            raise (e)
+
         if limit is not None:
             results = cur.fetchmany(limit)
         else:
             results = cur.fetchall()
-        
+
         cur.close()
 
     return results
 
-def search_word(word: str,
-                fuzzy: bool = False,
-                limit: Optional[int] = None) -> List[NamedTuple]:
+
+def search_word(
+    word: str, fuzzy: bool = False, limit: Optional[int] = None
+) -> List[NamedTuple]:
     """
     Searches the `gutensearch` database for every document with the given word
     and returns the results, ordered by the highest `count` for each document id.
@@ -95,11 +98,11 @@ def search_word(word: str,
     # check if the word supplied is actually a word pattern such
     # as fish% or thing_
     has_pattern = False
-    if ('%' in word) or ('_' in word):
+    if ("%" in word) or ("_" in word):
         has_pattern = True
 
     if has_pattern and fuzzy:
-        raise ValueError('Cannot search using both a pattern and fuzzy word matching')
+        raise ValueError("Cannot search using both a pattern and fuzzy word matching")
 
     if has_pattern:
         sql = """
@@ -110,7 +113,7 @@ def search_word(word: str,
          WHERE word LIKE %s
          ORDER BY 3 DESC
         """.strip()
-        return query(sql, params=(word, ), limit=limit)
+        return query(sql, params=(word,), limit=limit)
 
     if fuzzy:
         # we need to get the "corpus" of text available first
@@ -127,11 +130,12 @@ def search_word(word: str,
         WHERE word = %s
         ORDER BY 3 DESC
     """.strip()
-    return query(sql, params=(word, ), limit=limit)
+    return query(sql, params=(word,), limit=limit)
 
-def search_document(id_: int,
-                    min_length: Optional[int] = None,
-                    limit: Optional[int] = None) -> List[NamedTuple]:
+
+def search_document(
+    id_: int, min_length: Optional[int] = None, limit: Optional[int] = None
+) -> List[NamedTuple]:
     """
     Searches the `gutensearch` database for every word in the given document
     and returns the results, ordered by the highest `count` for each word.
@@ -156,7 +160,7 @@ def search_document(id_: int,
          ORDER BY 3 DESC
         """.strip()
         return query(sql, params=(id_, min_length), limit=limit)
-    
+
     sql = """
     SELECT word,
            document_id,
@@ -165,7 +169,8 @@ def search_document(id_: int,
      WHERE document_id = %s
      ORDER BY 3 DESC
     """.strip()
-    return query(sql, params=(id_, ), limit=limit)
+    return query(sql, params=(id_,), limit=limit)
+
 
 def query_distinct_words(sort: bool = False) -> List[str]:
     """
@@ -179,8 +184,8 @@ def query_distinct_words(sort: bool = False) -> List[str]:
         A list of every distinct word in the database
 
     """
-    records = query('SELECT word FROM distinct_words')
+    records = query("SELECT word FROM distinct_words")
     if sort:
-        return sorted([r.word for r in records]) # type: ignore
+        return sorted([r.word for r in records])  # type: ignore
 
-    return [r.word for r in records] # type: ignore
+    return [r.word for r in records]  # type: ignore
