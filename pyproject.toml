@@ -1,6 +1,6 @@
 [project]
 name = "gutensearch"
-version = "0.1.0"
+version = "0.1.1"
 description = "A searchable database and command-line-interface for wordss and documents from Project Gutenberg"
 authors = [
     { name = "Yannis Katsaros", email = "yannis@katsaros.io" }
